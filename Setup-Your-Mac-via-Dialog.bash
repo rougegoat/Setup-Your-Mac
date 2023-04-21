@@ -33,7 +33,6 @@
 #   - Check `bannerImage` and `welcomeBannerImage` ([Pull Request No. 22](https://github.com/dan-snelson/Setup-Your-Mac/pull/22) AND [Pull Request No. 24](https://github.com/dan-snelson/Setup-Your-Mac/pull/24) thanks @amadotejada!)
 #   - A "raw" unsorted listing of departments — with possible duplicates — is converted to a sorted, unique, JSON-compatible `departmentList` variable (Addresses [Issue No. 23](https://github.com/dan-snelson/Setup-Your-Mac/issues/23); thanks @rougegoat!)
 #   - The selected Configuration now displays in `helpmessage` (Addresses [Issue No. 17](https://github.com/dan-snelson/Setup-Your-Mac/issues/17); thanks for the idea, @master-vodawagner!)
-#   - Disable the so-called "Failure" dialog by setting the new `failureDialog` variable to `false` (Addresses [Issue No. 25](https://github.com/dan-snelson/Setup-Your-Mac/issues/25); thanks for the idea, @DevliegereM!)
 #
 ####################################################################################################
 
@@ -49,7 +48,7 @@
 # Script Version and Jamf Pro Script Parameters
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-scriptVersion="1.10.0-rc14"
+scriptVersion="1.10.0-rc13"
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 scriptLog="${4:-"/var/log/org.churchofjesuschrist.log"}"                        # Parameter 4: Script Log Location [ /var/log/org.churchofjesuschrist.log ] (i.e., Your organization's default location for client-side logs)
 debugMode="${5:-"verbose"}"                                                     # Parameter 5: Debug Mode [ verbose (default) | true | false ]
@@ -58,16 +57,28 @@ completionActionOption="${7:-"Restart Attended"}"                               
 requiredMinimumBuild="${8:-"disabled"}"                                         # Parameter 8: Required Minimum Build [ disabled (default) | 22E ] (i.e., Your organization's required minimum build of macOS to allow users to proceed; use "22E" for macOS 13.3)
 outdatedOsAction="${9:-"/System/Library/CoreServices/Software Update.app"}"     # Parameter 9: Outdated OS Action [ /System/Library/CoreServices/Software Update.app (default) | jamfselfservice://content?entity=policy&id=117&action=view ] (i.e., Jamf Pro Self Service policy ID for operating system ugprades)
 
-
-
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# Various Feature Variables
+# Welcome Message User Input Customization Choices
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-debugModeSleepAmount="3"    # Delay for various actions when running in Debug Mode
-failureDialog="true"        # Display the so-called "Failure" dialog (after the main SYM dialog) [ true | false ]
+# These control which user input boxes are added to the first page of Setup Your Mac.  If you do not want to ask about a value, set it to any other value
+promptForAssetTag="yes"
+promptForRoom="yes"
+promptForComputerName="yes"
+promptForDepartment="yes"
+prefillUsername="yes"
 
+# An unsorted, comma-separated list of buildings (with possible duplication).  If empty, this will be hidden from the user info prompt
+buildingsListRaw="Building,Tower,Barn,Castle"
 
+# A sorted, unique, JSON-compatible list of buildings
+buildingsList=$( echo "${buildingsListRaw}" | tr ',' '\n' | sort -f | uniq | sed -e 's/^/\"/' -e 's/$/\",/' -e '$ s/.$//' )
+
+# An unsorted, comma-separated list of departments (with possible duplication).  If empty, this will be hidden from the user info prompt
+departmentListRaw="Asset Management,Sales,Australia Area Office,Purchasing / Sourcing,Board of Directors,Strategic Initiatives & Programs,Operations,Business Development,Marketing,Creative Services,Customer Service / Customer Experience,Risk Management,Engineering,Finance / Accounting,Sales,General Management,Human Resources,Marketing,Investor Relations,Legal,Marketing,Sales,Product Management,Production,Corporate Communications,Information Technology / Technology,Quality Assurance,Project Management Office,Sales,Technology"
+
+# A sorted, unique, JSON-compatible list of departments
+departmentList=$( echo "${departmentListRaw}" | tr ',' '\n' | sort -f | uniq | sed -e 's/^/\"/' -e 's/$/\",/' -e '$ s/.$//' )
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Operating System, Computer Model Name, etc.
@@ -77,6 +88,7 @@ osVersion=$( sw_vers -productVersion )
 osBuild=$( sw_vers -buildVersion )
 osMajorVersion=$( echo "${osVersion}" | awk -F '.' '{print $1}' )
 modelName=$( /usr/libexec/PlistBuddy -c 'Print :0:_items:0:machine_name' /dev/stdin <<< "$(system_profiler -xml SPHardwareDataType)" )
+debugModeSleepAmount="3"
 reconOptions=""
 exitCode="0"
 
@@ -487,22 +499,51 @@ welcomeVideo="--title \"$welcomeTitle\" \
 --commandfile \"$welcomeCommandFile\" "
 
 
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# "Welcome" Departments (thanks, @rougegoat!)
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
-# An unsorted, comma-separated list of departments (with possible duplication)
-departmentListRaw="Asset Management,Sales,Australia Area Office,Purchasing / Sourcing,Board of Directors,Strategic Initiatives & Programs,Operations,Business Development,Marketing,Creative Services,Customer Service / Customer Experience,Risk Management,Engineering,Finance / Accounting,Sales,General Management,Human Resources,Marketing,Investor Relations,Legal,Marketing,Sales,Product Management,Production,Corporate Communications,Information Technology / Technology,Quality Assurance,Project Management Office,Sales,Technology"
-
-# A sorted, unique, JSON-compatible list of departments
-departmentList=$( echo "${departmentListRaw}" | tr ',' '\n' | sort -f | uniq | sed -e 's/^/\"/' -e 's/$/\",/' -e '$ s/.$//' )
-
-
-
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # "Welcome" JSON for Capturing User Input (thanks, @bartreardon!)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+if [ "$prefillUsername" == "yes" ]; then
+    usernamePrefil=',"value" : "'${loggedInUser}'"'
+fi
+
+if [ "$promptForComputerName" == "yes" ]; then
+    compNameJSON=',{ "title" : "Computer Name","required" : false,"prompt" : "Computer Name" }'
+fi
+
+if [ "$promptForAssetTag" == "yes" ]; then
+    assetTagJSON=',{   "title" : "Asset Tag",
+        "required" : true,
+        "prompt" : "Please enter the seven-digit Asset Tag",
+        "regex" : "^(AP|IP|CD)?[0-9]{7,}$",
+        "regexerror" : "Please enter (at least) seven digits for the Asset Tag, optionally preceed by either AP, IP or CD."
+    }'
+fi
+
+if [ "$promptForRoom" == "yes" ]; then
+    roomJSON=',{ "title" : "Room","required" : false,"prompt" : "Optional" }'
+fi
+
+if [ -n "$buildingsListRaw" ]; then
+    buildingJSON='{
+            "title" : "Building",
+            "default" : "Please select your building",
+            "values" : [
+                "Please select your building",
+                '${buildingsList}'
+            ]
+        },'
+fi
+
+if [ "$promptForDepartment" == "yes" ]; then
+    departmentJSON='{   "title" : "Department",
+            "default" : "Please select your department",
+            "values" : [
+                "Please select your department",
+                '${departmentList}'
+            ]
+        },'
+fi
 
 welcomeJSON='
 {
@@ -522,35 +563,24 @@ welcomeJSON='
     "titlefont" : "shadow=true, size=36, colour=#FFFDF4",
     "messagefont" : "size=14",
     "textfield" : [
-        {   "title" : "Computer Name",
-            "required" : false,
-            "prompt" : "Computer Name"
-        },
         {   "title" : "User Name",
             "required" : false,
             "prompt" : "User Name"
-        },
-        {   "title" : "Asset Tag",
-            "required" : true,
-            "prompt" : "Please enter the seven-digit Asset Tag",
-            "regex" : "^(AP|IP|CD)?[0-9]{7,}$",
-            "regexerror" : "Please enter (at least) seven digits for the Asset Tag, optionally preceed by either AP, IP or CD."
+            '${usernamePrefil}'
         }
+        '${compNameJSON}'
+        '${assetTagJSON}'
+        '${roomJSON}'
     ],
     "selectitems" : [
+        '${buildingJSON}'
+        '${departmentJSON}'
         {   "title" : "Configuration",
             "default" : "Required",
             "values" : [
                 "Required",
                 "Recommended",
                 "Complete"
-            ]
-        },  
-        {   "title" : "Department",
-            "default" : "Please select your department",
-            "values" : [
-                "Please select your department",
-                '${departmentList}'
             ]
         }
     ],
@@ -1395,70 +1425,35 @@ function finalise(){
 
     if [[ "${jamfProPolicyTriggerFailure}" == "failed" ]]; then
 
-        outputLineNumberInVerboseDebugMode
-        updateScriptLog "Failed polcies detected …"
+        killProcess "caffeinate"
+        dialogUpdateSetupYourMac "title: Sorry ${loggedInUserFirstname}, something went sideways"
+        dialogUpdateSetupYourMac "icon: SF=xmark.circle.fill,weight=bold,colour1=#BB1717,colour2=#F31F1F"
+        dialogUpdateSetupYourMac "progresstext: Failures detected. Please click Continue for troubleshooting information."
+        dialogUpdateSetupYourMac "button1text: Continue …"
+        dialogUpdateSetupYourMac "button1: enable"
+        dialogUpdateSetupYourMac "progress: reset"
 
-        if [[ "${failureDialog}" == "true" ]]; then
+        # Wait for user-acknowledgment due to detected failure
+        wait
 
-            outputLineNumberInVerboseDebugMode
-            updateScriptLog "Display Failure dialog: ${failureDialog}"
+        dialogUpdateSetupYourMac "quit:"
+        eval "${dialogFailureCMD}" & sleep 0.3
 
-            killProcess "caffeinate"
-            dialogUpdateSetupYourMac "title: Sorry ${loggedInUserFirstname}, something went sideways"
-            dialogUpdateSetupYourMac "icon: SF=xmark.circle.fill,weight=bold,colour1=#BB1717,colour2=#F31F1F"
-            dialogUpdateSetupYourMac "progresstext: Failures detected. Please click Continue for troubleshooting information."
-            dialogUpdateSetupYourMac "button1text: Continue …"
-            dialogUpdateSetupYourMac "button1: enable"
-            dialogUpdateSetupYourMac "progress: reset"
+        updateScriptLog "\n\n# # #\n# FAILURE DIALOG\n# # #\n"
+        updateScriptLog "Jamf Pro Policy Name Failures:"
+        updateScriptLog "${jamfProPolicyNameFailures}"
 
-            # Wait for user-acknowledgment due to detected failure
-            wait
+        dialogUpdateFailure "message: A failure has been detected, ${loggedInUserFirstname}.  \n\nPlease complete the following steps:\n1. Reboot and login to your ${modelName}  \n2. Login to Self Service  \n3. Re-run any failed policy listed below  \n\nThe following failed:  \n${jamfProPolicyNameFailures}  \n\n\n\nIf you need assistance, please contact the Help Desk,  \n+1 (801) 555-1212, and mention [KB86753099](https://servicenow.company.com/support?id=kb_article_view&sysparm_article=KB86753099#Failures). "
+        dialogUpdateFailure "icon: SF=xmark.circle.fill,weight=bold,colour1=#BB1717,colour2=#F31F1F"
+        dialogUpdateFailure "button1text: ${button1textCompletionActionOption}"
 
-            dialogUpdateSetupYourMac "quit:"
-            eval "${dialogFailureCMD}" & sleep 0.3
+        # Wait for user-acknowledgment due to detected failure
+        wait
 
-            updateScriptLog "\n\n# # #\n# FAILURE DIALOG\n# # #\n"
-            updateScriptLog "Jamf Pro Policy Name Failures:"
-            updateScriptLog "${jamfProPolicyNameFailures}"
-
-            dialogUpdateFailure "message: A failure has been detected, ${loggedInUserFirstname}.  \n\nPlease complete the following steps:\n1. Reboot and login to your ${modelName}  \n2. Login to Self Service  \n3. Re-run any failed policy listed below  \n\nThe following failed:  \n${jamfProPolicyNameFailures}  \n\n\n\nIf you need assistance, please contact the Help Desk,  \n+1 (801) 555-1212, and mention [KB86753099](https://servicenow.company.com/support?id=kb_article_view&sysparm_article=KB86753099#Failures). "
-            dialogUpdateFailure "icon: SF=xmark.circle.fill,weight=bold,colour1=#BB1717,colour2=#F31F1F"
-            dialogUpdateFailure "button1text: ${button1textCompletionActionOption}"
-
-            # Wait for user-acknowledgment due to detected failure
-            wait
-
-            dialogUpdateFailure "quit:"
-            quitScript "1"
-
-        else
-
-            outputLineNumberInVerboseDebugMode
-            updateScriptLog "Display Failure dialog: ${failureDialog}"
-
-            killProcess "caffeinate"
-            dialogUpdateSetupYourMac "title: Sorry ${loggedInUserFirstname}, something went sideways"
-            dialogUpdateSetupYourMac "icon: SF=xmark.circle.fill,weight=bold,colour1=#BB1717,colour2=#F31F1F"
-            dialogUpdateSetupYourMac "progresstext: Failures detected."
-            dialogUpdateSetupYourMac "button1text: ${button1textCompletionActionOption}"
-            dialogUpdateSetupYourMac "button1: enable"
-            dialogUpdateSetupYourMac "progress: reset"
-            dialogUpdateSetupYourMac "progresstext: Errors detected; please ${progressTextCompletionAction// and } your ${modelName}, ${loggedInUserFirstname}."
-
-            # If either "wait" or "sleep" has been specified for `completionActionOption`, honor that behavior
-            if [[ "${completionActionOption}" == "wait" ]] || [[ "${completionActionOption}" == "[Ss]leep"* ]]; then
-                updateScriptLog "Honoring ${completionActionOption} behavior …"
-                eval "${completionActionOption}" "${dialogSetupYourMacProcessID}"
-            fi
-
-            quitScript "1"
-
-        fi
+        dialogUpdateFailure "quit:"
+        quitScript "1"
 
     else
-
-        outputLineNumberInVerboseDebugMode
-        updateScriptLog "All polcies executed successfully"
 
         dialogUpdateSetupYourMac "title: ${loggedInUserFirstname}‘s ${modelName} is ready!"
         dialogUpdateSetupYourMac "icon: SF=checkmark.circle.fill,weight=bold,colour1=#00ff44,colour2=#075c1e"
@@ -2320,9 +2315,9 @@ elif [[ "${welcomeDialog}" == "userInput" ]]; then
             userName=$(get_json_value_welcomeDialog "$welcomeResults" "User Name")
             assetTag=$(get_json_value_welcomeDialog "$welcomeResults" "Asset Tag")
             symConfiguration=$(get_json_value_welcomeDialog "$welcomeResults" "Configuration" "selectedValue")
-            department=$(get_json_value_welcomeDialog "$welcomeResults" "Department" "selectedValue")
-
-
+            department=$(get_json_value_welcomeDialog "$welcomeResults" "Department" "selectedValue" | grep -v "Please select your department" )
+            room=$(get_json_value_welcomeDialog "$welcomeResults" "Room")
+            building=$(get_json_value_welcomeDialog "$welcomeResults" "Building" "selectedValue" | grep -v "Please select your building" )
 
             ###
             # Output the various values from the welcomeResults JSON to the log file
@@ -2407,6 +2402,13 @@ elif [[ "${welcomeDialog}" == "userInput" ]]; then
                 # UNTESTED, UNSUPPORTED "YOYO" EXAMPLE
                 reconOptions+="-department \"${department}\" "
             fi
+
+            # Building
+            if [[ -n "${building}" ]]; then reconOptions+="-building \"${building}\" "; fi
+            
+            # Room
+            if [[ -n "${room}" ]]; then reconOptions+="-room \"${room}\" "; fi
+
 
             # Output `recon` options to log
             updateScriptLog "WELCOME DIALOG: reconOptions: ${reconOptions}"
@@ -2587,6 +2589,8 @@ if [[ -n ${userName} ]]; then infobox+="**Username:**  \n$userName  \n\n" ; fi
 if [[ -n ${assetTag} ]]; then infobox+="**Asset Tag:**  \n$assetTag  \n\n" ; fi
 if [[ -n ${infoboxConfiguration} ]]; then infobox+="**Configuration:**  \n$infoboxConfiguration  \n\n" ; fi
 if [[ -n ${department} ]]; then infobox+="**Department:**  \n$department  \n\n" ; fi
+if [[ -n ${building} ]]; then infobox+="**Building:**  \n$building  \n\n" ; fi
+if [[ -n ${room} ]]; then infobox+="**Room:**  \n$room  \n\n" ; fi
 
 dialogUpdateSetupYourMac "infobox: ${infobox}"
 
